@@ -3,216 +3,315 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-# 1-я функция условия.
+# -----------------------------
+# 1. Определяем функции F1 и F2
+# -----------------------------
 def F1(x):
     """
-    Функция F1: f(x) = 3*x - x**3 - 1.
+    Функция F1(x) = 3*x - x^3 - 1.
+    Задание требует найти минимум F1 на разных интервалах.
     """
-    return 3 * x - x**3 - 1
+    return 3*x - x**3 - 1
 
-# 2-я функция условия.
 def F2(x):
     """
-    Функция F2: f(x) = (4 - x**2) / (x * (x**2 + 3)).
+    Функция F2(x) = (4 - x^2) / (x*(x^2 + 3)).
+    Задание требует найти максимум на ряде интервалов, а также минимум на одном интервале.
     """
-    return (4 - x**2) / (x * (x**2 + 3))
+    return (4 - x**2) / (x*(x**2 + 3))
 
-def dichotomy_method(f, a, b, epsilon, tol, max_iterations=1000):
+# -----------------------------------------------------------------------------------
+# 2. Реализуем методы оптимизации (дихотомии, золотого сечения, Фибоначчи) с выводом.
+# -----------------------------------------------------------------------------------
+
+def dichotomy_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
     """
-    Поиск минимума функции f на отрезке [a, b] методом дихотомии.
+    Метод дихотомии.
+    Если find_min=True, ищем минимум f(x), иначе ищем максимум f(x).
+    Для поиска максимума используем f_neg(x) = -f(x) и минимизируем её.
 
     Параметры:
-        f : функция для минимизации.
-        a, b : границы интервала.
-        epsilon : небольшое число для разделения точек (используется в методе).
-        tol : требуемая точность (условие остановки по длине интервала).
-        max_iterations : максимальное число итераций.
+    -----------
+    f : функция
+    a, b : границы интервала
+    epsilon : константа различимости
+    tol : допустимая длина интервала неопределённости (l)
+    find_min : True для минимума, False для максимума
+    max_iterations : ограничение на количество итераций
 
     Возвращает:
-        (x_opt, f(x_opt), iterations)
+    -----------
+    x_opt : найденная точка минимума/максимума
+    f_opt : значение f(x_opt)
+    iterations : число итераций
+    f_calls : число вычислений функции
     """
+    # Чтобы искать максимум, минимизируем -f(x)
+    sign = 1 if find_min else -1
+    def g(x):
+        return sign * f(x)
+
+    iteration_data = []
     iterations = 0
+    f_calls = 0
+
     while (b - a) > tol and iterations < max_iterations:
         iterations += 1
         mid = (a + b) / 2
         x1 = mid - epsilon
         x2 = mid + epsilon
-        if f(x1) < f(x2):
+
+        f1 = g(x1); f_calls += 1
+        f2 = g(x2); f_calls += 1
+
+        # Сохраняем данные итерации (k, a_k, b_k, λ_k, μ_k, F(λ_k), F(μ_k))
+        iteration_data.append((iterations, a, b, x1, x2, sign*f1, sign*f2))
+
+        if f1 <= f2:
             b = x2
         else:
             a = x1
-    x_opt = (a + b) / 2
-    return x_opt, f(x_opt), iterations
 
-def golden_section_method(f, a, b, epsilon, tol, max_iterations=1000):
+    x_opt = (a + b) / 2
+    f_opt = f(x_opt)  # итоговое значение функции (уже без знака)
+    f_calls += 1
+
+    # Выводим таблицу итераций
+    print("\nМетод дихотомии" + (" (минимум)" if find_min else " (максимум)") + f", epsilon={epsilon}, tol={tol}")
+    print("k      a_k       b_k       λ_k       μ_k     F(λ_k)    F(μ_k)")
+    for row in iteration_data:
+        k, a_k, b_k, lam, mu, F_lam, F_mu = row
+        print(f"{k:2d}  {a_k:8.5f}  {b_k:8.5f}  {lam:8.5f}  {mu:8.5f}  {F_lam:8.5f}  {F_mu:8.5f}")
+
+    print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, итераций={iterations}, вычислений f={f_calls}\n")
+
+    return x_opt, f_opt, iterations, f_calls
+
+
+def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
     """
-    Поиск минимума функции f на отрезке [a, b] методом золотого сечения.
-    Параметр epsilon здесь не используется (оставлен для согласованности интерфейса).
+    Метод золотого сечения.
+    Параметр epsilon здесь не используется, но оставляем для единообразия.
 
     Параметры:
-        f : функция для минимизации.
-        a, b : границы интервала.
-        epsilon : не используется.
-        tol : требуемая точность (условие остановки по длине интервала).
-        max_iterations : максимальное число итераций.
+    -----------
+    f : функция
+    a, b : границы интервала
+    epsilon : не используется
+    tol : допустимая длина интервала неопределённости
+    find_min : True для минимума, False для максимума
+    max_iterations : ограничение на число итераций
 
     Возвращает:
-        (x_opt, f(x_opt), iterations)
+    -----------
+    x_opt, f_opt, iterations, f_calls
     """
+    sign = 1 if find_min else -1
+    def g(x):
+        return sign * f(x)
+
+    iteration_data = []
     iterations = 0
-    phi = (1 + np.sqrt(5)) / 2  # золотое сечение
+    f_calls = 0
+
+    phi = (1 + np.sqrt(5)) / 2
     x1 = b - (b - a) / phi
     x2 = a + (b - a) / phi
-    while abs(b - a) > tol and iterations < max_iterations:
-        if f(x1) <= f(x2):
+    f1 = g(x1); f_calls += 1
+    f2 = g(x2); f_calls += 1
+
+    while (b - a) > tol and iterations < max_iterations:
+        iterations += 1
+        iteration_data.append((iterations, a, b, x1, x2, sign*f1, sign*f2))
+
+        if f1 <= f2:
             b = x2
             x2 = x1
+            f2 = f1
             x1 = b - (b - a) / phi
+            f1 = g(x1); f_calls += 1
         else:
             a = x1
             x1 = x2
+            f1 = f2
             x2 = a + (b - a) / phi
-        iterations += 1
-    x_opt = (a + b) / 2
-    return x_opt, f(x_opt), iterations
+            f2 = g(x2); f_calls += 1
 
-def fibonacci_method(f, a, b, epsilon, tol, max_iterations=1000):
+    x_opt = (a + b) / 2
+    f_opt = f(x_opt); f_calls += 1
+
+    print("\nМетод золотого сечения" + (" (минимум)" if find_min else " (максимум)") + f", epsilon={epsilon}, tol={tol}")
+    print("k      a_k       b_k       λ_k       μ_k     F(λ_k)    F(μ_k)")
+    for row in iteration_data:
+        k, a_k, b_k, lam, mu, F_lam, F_mu = row
+        print(f"{k:2d}  {a_k:8.5f}  {b_k:8.5f}  {lam:8.5f}  {mu:8.5f}  {F_lam:8.5f}  {F_mu:8.5f}")
+
+    print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, итераций={iterations}, вычислений f={f_calls}\n")
+
+    return x_opt, f_opt, iterations, f_calls
+
+
+def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
     """
-    Поиск минимума функции f на отрезке [a, b] методом Фибоначчи.
-    Параметр epsilon здесь не используется (оставлен для согласованности интерфейса).
+    Метод Фибоначчи для поиска минимума/максимума на [a, b].
+    Параметр epsilon не используется, но передаётся для единообразия.
 
     Параметры:
-        f : функция для минимизации.
-        a, b : границы интервала.
-        epsilon : не используется.
-        tol : требуемая точность (определяет число итераций через числа Фибоначчи).
-        max_iterations : максимальное число итераций (не используется, определяется tol).
+    -----------
+    f : функция
+    a, b : границы интервала
+    epsilon : не используется
+    tol : допустимая длина интервала неопределённости
+    find_min : True для минимума, False для максимума
+    max_iterations : ограничение на число итераций (для подстраховки)
 
     Возвращает:
-        (x_opt, f(x_opt), iterations)
+    -----------
+    x_opt, f_opt, iterations, f_calls
     """
-    # Вычисляем числа Фибоначчи, пока последнее число не станет больше (b - a) / tol
+    sign = 1 if find_min else -1
+    def g(x):
+        return sign * f(x)
+
+    iteration_data = []
+    iterations = 0
+    f_calls = 0
+
+    # Генерируем числа Фибоначчи, пока последнее не превысит (b-a)/tol
     fib = [1, 1]
     while fib[-1] < (b - a) / tol:
         fib.append(fib[-1] + fib[-2])
-    n = len(fib) - 1  # число итераций, необходимое для достижения точности
+        if len(fib) > 10000:  # защита от бесконечного цикла
+            break
 
-    # Начальное разбиение
-    x1 = a + fib[n-2] / fib[n] * (b - a)
-    x2 = a + fib[n-1] / fib[n] * (b - a)
-    iterations = 0
-    for k in range(1, n-1):
+    n = len(fib) - 1
+    x1 = a + fib[n-2]/fib[n] * (b - a)
+    x2 = a + fib[n-1]/fib[n] * (b - a)
+    f1 = g(x1); f_calls += 1
+    f2 = g(x2); f_calls += 1
+
+    while iterations < (n - 2) and (b - a) > tol and iterations < max_iterations:
         iterations += 1
-        if f(x1) > f(x2):
+        iteration_data.append((iterations, a, b, x1, x2, sign*f1, sign*f2))
+
+        if f1 > f2:
             a = x1
             x1 = x2
-            x2 = a + fib[n - k - 1] / fib[n - k] * (b - a)
+            f1 = f2
+            x2 = a + fib[n - iterations - 1]/fib[n - iterations] * (b - a)
+            f2 = g(x2); f_calls += 1
         else:
             b = x2
             x2 = x1
-            x1 = a + fib[n - k - 2] / fib[n - k] * (b - a)
+            f2 = f1
+            x1 = a + fib[n - iterations - 2]/fib[n - iterations] * (b - a)
+            f1 = g(x1); f_calls += 1
+
     x_opt = (a + b) / 2
-    return x_opt, f(x_opt), iterations
+    f_opt = f(x_opt); f_calls += 1
 
-def find_extremum(f, intervals, method, epsilon, tol):
+    print("\nМетод Фибоначчи" + (" (минимум)" if find_min else " (максимум)") + f", epsilon={epsilon}, tol={tol}")
+    print("k      a_k       b_k       λ_k       μ_k     F(λ_k)    F(μ_k)")
+    for row in iteration_data:
+        k, a_k, b_k, lam, mu, F_lam, F_mu = row
+        print(f"{k:2d}  {a_k:8.5f}  {b_k:8.5f}  {lam:8.5f}  {mu:8.5f}  {F_lam:8.5f}  {F_mu:8.5f}")
+
+    print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, итераций={iterations}, вычислений f={f_calls}\n")
+
+    return x_opt, f_opt, iterations, f_calls
+
+# -----------------------------------------------------------------------------
+# 3. Вспомогательная функция для построения графика с отмеченными результатами.
+# -----------------------------------------------------------------------------
+def plot_function(f, a, b, x_opt, f_opt, title=""):
     """
-    Поиск минимума функции f на заданных интервалах с использованием указанного метода.
-
-    Параметры:
-        f : функция для минимизации.
-        intervals : список кортежей (a, b) – интервалов поиска.
-        method : функция-метод оптимизации.
-        epsilon : параметр для метода (или игнорируется, если не используется).
-        tol : требуемая точность.
-
-    Возвращает:
-        Список кортежей (x_opt, f(x_opt), iterations) для каждого интервала.
+    Строит график функции на отрезке [a, b], отмечает начальные границы
+    и точку найденного экстремума.
     """
-    results = []
-    for interval in intervals:
-        a, b = interval
-        x_opt, f_opt, iterations = method(f, a, b, epsilon, tol)
-        results.append((x_opt, f_opt, iterations))
-    return results
+    x_vals = np.linspace(a, b, 400)
+    y_vals = [f(x) for x in x_vals]
 
-def plot_function(f, intervals, x_opt_points, f_opt_points):
-    """
-    Построение графика функции f, отображение интервалов и найденных оптимальных точек.
-
-    Параметры:
-        f : функция для построения.
-        intervals : список интервалов в виде кортежей (a, b).
-        x_opt_points : список найденных оптимальных x.
-        f_opt_points : список соответствующих значений f(x).
-    """
-    # Определяем диапазон построения по заданным интервалам
-    x_min = min(interval[0] for interval in intervals)
-    x_max = max(interval[1] for interval in intervals)
-    x = np.linspace(x_min, x_max, 1000)
-    y = f(x)
-
-    plt.figure(figsize=(8, 6))
-    plt.plot(x, y, label="Функция")
-    # Рисуем линии для границ интервалов, подписывая их только один раз
-    for i, (a, b) in enumerate(intervals):
-        if i == 0:
-            plt.axvline(x=a, color='r', linestyle='--', label="Начало интервала")
-            plt.axvline(x=b, color='g', linestyle='--', label="Конец интервала")
-        else:
-            plt.axvline(x=a, color='r', linestyle='--')
-            plt.axvline(x=b, color='g', linestyle='--')
-    # Отображаем найденные оптимальные точки
-    plt.scatter(x_opt_points, f_opt_points, color='b', label="Оптимальная точка")
+    plt.figure(figsize=(6, 4))
+    plt.plot(x_vals, y_vals, 'b-', label="Функция")
+    plt.axvline(x=a, color='r', linestyle='--', label="Начало интервала")
+    plt.axvline(x=b, color='g', linestyle='--', label="Конец интервала")
+    plt.scatter(x_opt, f_opt, color='m', zorder=5, label="Оптимум")
+    plt.title(title)
     plt.xlabel("x")
     plt.ylabel("f(x)")
-    plt.title("Оптимизация функции")
-    plt.legend()
     plt.grid(True)
+    plt.legend()
     plt.show()
 
-# Заданные интервалы для F1 и F2.
-intervals_F1 = [(-3, 0), (0.8, 5), (-10, 0.5)]
-intervals_F2 = [(-5, 0), (0, 10), (-5, 5)]
+# -----------------------------------------------------------------------------
+# 4. Пример использования для F1 и F2
+# -----------------------------------------------------------------------------
 
-# Параметры: epsilon используется в методе дихотомии, tol – требуемая точность.
+# Интервалы неопределённости из задания:
+intervals_F1 = [(-3, 0), (0.8, 5), (-10, 0.5)]
+# Для F2: max ищем на [-5,0], [0,10], а min — на [-5,5].
+intervals_F2_max = [(-5, 0), (0, 10)]
+intervals_F2_min = [(-5, 5)]
+
+# Значения ε (epsilon) и l (tol):
 epsilon_values = [0.1, 0.01, 0.001]
 tol_values = [0.1, 0.01]
 
-# Выполнение вычислений для F1 методом дихотомии.
-print("Метод дихотомии для F1:")
-for epsilon in epsilon_values:
-    for tol in tol_values:
-        print(f"F1, epsilon = {epsilon}, tol = {tol}")
-        results = find_extremum(F1, intervals_F1, dichotomy_method, epsilon, tol)
-        for i, (x_opt, f_opt, iterations) in enumerate(results):
-            print(f"Интервал {intervals_F1[i]}: x_opt = {x_opt:.5f}, f(x_opt) = {f_opt:.5f}, итераций = {iterations}")
-        print("-" * 40)
+# ---------------------------
+# Пример 1: F1 (минимизация)
+# ---------------------------
+print("=== Минимизация F1(x) = 3*x - x^3 - 1 ===")
 
-# Выполнение вычислений для F2 методом золотого сечения.
-print("\nМетод золотого сечения для F2:")
-for epsilon in epsilon_values:  # epsilon не используется, но передаётся для единообразия
-    for tol in tol_values:
-        print(f"F2, epsilon = {epsilon}, tol = {tol}")
-        results = find_extremum(F2, intervals_F2, golden_section_method, epsilon, tol)
-        for i, (x_opt, f_opt, iterations) in enumerate(results):
-            print(f"Интервал {intervals_F2[i]}: x_opt = {x_opt:.5f}, f(x_opt) = {f_opt:.5f}, итераций = {iterations}")
-        print("-" * 40)
+# Для наглядности возьмём одно сочетание epsilon и tol, чтобы не перегружать вывод.
+# При желании можно перебрать все combinations(epsilon_values, tol_values).
+example_epsilon = 0.01
+example_tol = 0.1
 
-# Демонстрация метода Фибоначчи для F1.
-print("\nМетод Фибоначчи для F1:")
-for epsilon in epsilon_values:  # epsilon не используется, но передаётся для единообразия
-    for tol in tol_values:
-        print(f"F1, epsilon = {epsilon}, tol = {tol}")
-        results = find_extremum(F1, intervals_F1, fibonacci_method, epsilon, tol)
-        for i, (x_opt, f_opt, iterations) in enumerate(results):
-            print(f"Интервал {intervals_F1[i]}: x_opt = {x_opt:.5f}, f(x_opt) = {f_opt:.5f}, итераций = {iterations}")
-        print("-" * 40)
+for (a, b) in intervals_F1:
+    # 1) Метод дихотомии
+    x_opt, f_opt, iters, f_calls = dichotomy_method(F1, a, b, example_epsilon, example_tol, find_min=True)
+    # Строим график
+    plot_function(F1, a, b, x_opt, f_opt, title=f"F1: дихотомия, интервал=({a},{b})")
 
-# Пример построения графика для F1 с использованием метода дихотомии на первом интервале.
-x_opt, f_opt, iters = dichotomy_method(F1, intervals_F1[0][0], intervals_F1[0][1], 0.1, 0.1)
-print(f"\nПример для F1 (метод дихотомии) на интервале {intervals_F1[0]}:")
-print(f"Оптимальное x: {x_opt:.5f}")
-print(f"f(x_opt): {f_opt:.5f}")
-print(f"Количество итераций: {iters}")
+    # 2) Метод золотого сечения
+    x_opt, f_opt, iters, f_calls = golden_section_method(F1, a, b, example_epsilon, example_tol, find_min=True)
+    plot_function(F1, a, b, x_opt, f_opt, title=f"F1: золотое сечение, интервал=({a},{b})")
 
-plot_function(F1, [intervals_F1[0]], [x_opt], [f_opt])
+    # 3) Метод Фибоначчи
+    x_opt, f_opt, iters, f_calls = fibonacci_method(F1, a, b, example_epsilon, example_tol, find_min=True)
+    plot_function(F1, a, b, x_opt, f_opt, title=f"F1: Фибоначчи, интервал=({a},{b})")
+
+
+# --------------------------------
+# Пример 2: F2 (максимизация, min)
+# --------------------------------
+print("=== Оптимизация F2(x) = (4 - x^2) / (x*(x^2 + 3)) ===")
+
+# a) Ищем максимум на интервалах [-5,0] и [0,10]
+print("--- Максимизация F2 ---")
+for (a, b) in intervals_F2_max:
+    x_opt, f_opt, iters, f_calls = dichotomy_method(F2, a, b, 0.01, 0.1, find_min=False)
+    plot_function(F2, a, b, x_opt, f_opt, title=f"F2: дихотомия (max), интервал=({a},{b})")
+
+    x_opt, f_opt, iters, f_calls = golden_section_method(F2, a, b, 0.01, 0.1, find_min=False)
+    plot_function(F2, a, b, x_opt, f_opt, title=f"F2: золотое сечение (max), интервал=({a},{b})")
+
+    x_opt, f_opt, iters, f_calls = fibonacci_method(F2, a, b, 0.01, 0.1, find_min=False)
+    plot_function(F2, a, b, x_opt, f_opt, title=f"F2: Фибоначчи (max), интервал=({a},{b})")
+
+# b) Ищем минимум F2 на интервале [-5,5]
+print("\n--- Минимизация F2 на [-5,5] ---")
+(a, b) = intervals_F2_min[0]
+x_opt, f_opt, iters, f_calls = dichotomy_method(F2, a, b, 0.01, 0.1, find_min=True)
+plot_function(F2, a, b, x_opt, f_opt, title=f"F2: дихотомия (min), интервал=({a},{b})")
+
+x_opt, f_opt, iters, f_calls = golden_section_method(F2, a, b, 0.01, 0.1, find_min=True)
+plot_function(F2, a, b, x_opt, f_opt, title=f"F2: золотое сечение (min), интервал=({a},{b})")
+
+x_opt, f_opt, iters, f_calls = fibonacci_method(F2, a, b, 0.01, 0.1, find_min=True)
+plot_function(F2, a, b, x_opt, f_opt, title=f"F2: Фибоначчи (min), интервал=({a},{b})")
+
+
+print("\nВсе вычисления завершены.")
+print("При необходимости можно перебрать все комбинации (epsilon_values, tol_values) для каждого интервала.")
+print("Также в коде можно дополнительно сохранять результаты или строить все графики последовательно.")
