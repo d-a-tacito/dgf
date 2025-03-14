@@ -15,7 +15,20 @@ def F1(x):
 
 def F2(x):
     """Функция F2(x) = (4 - x^2) / (x*(x^2 + 3))."""
-    return (4 - x**2) / (x*(x**2 + 3))
+    # Если x близко к 0, возвращаем большое число (или np.inf)
+    if abs(x) < 1e-8:
+        return float('inf')
+    return (4 - x**2) / (x * (x**2 + 3))
+
+def export_to_excel(iteration_data, filename="results-iterations.xlsx"):
+    # Создаем DataFrame с заданными именами столбцов
+    df = pd.DataFrame(
+        iteration_data,
+        columns=["k", "a_k", "b_k", "λ_k", "μ_k", "F(λ_k)", "F(μ_k)"]
+    )
+    # Сохраняем DataFrame в Excel-файл
+    df.to_excel(filename, index=False)
+    print(f"Результаты экспортированы в файл {filename}")
 
 # -----------------------------------------------------------
 # 2. Методы оптимизации (дихотомии, золотого сечения, Фибоначчи)
@@ -59,6 +72,10 @@ def dichotomy_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
 
     print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, "
           f"итераций={iterations}, вычислений f={f_calls}\n")
+
+    # Экспорт результатов в Excel
+    export_to_excel(iteration_data)
+
     return x_opt, f_opt, iterations, f_calls
 
 def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
@@ -104,6 +121,10 @@ def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1
 
     print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, "
           f"итераций={iterations}, вычислений f={f_calls}\n")
+
+    # Экспорт результатов в Excel
+    export_to_excel(iteration_data)
+
     return x_opt, f_opt, iterations, f_calls
 
 def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
@@ -155,6 +176,10 @@ def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
 
     print(f"\nИтог: x_opt={x_opt:.5f}, f(x_opt)={f_opt:.5f}, "
           f"итераций={iterations}, вычислений f={f_calls}\n")
+
+    # Экспорт результатов в Excel
+    export_to_excel(iteration_data)
+
     return x_opt, f_opt, iterations, f_calls
 
 # -----------------------------------------------------------
@@ -403,4 +428,4 @@ def main(manual=False):
 
 if __name__ == "__main__":
     # Запуск: для автоматического режима установите manual=False
-    main(manual=False)
+    main(manual=True)
