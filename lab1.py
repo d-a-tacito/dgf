@@ -111,7 +111,7 @@ def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1
         iterations += 1
 
     x_opt = (a + b) / 2
-    f_opt = f(x_opt)
+    f_opt = f(x_opt); f_calls+=1
 
     print("\nМетод золотого сечения" + (" (минимум)" if find_min else " (максимум)")
           + f", epsilon={epsilon}, tol={tol}")
@@ -167,7 +167,7 @@ def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
         iterations += 1
 
     x_opt = (a + b) / 2
-    f_opt = f(x_opt)
+    f_opt = f(x_opt); f_calls+=1
 
     print("\nМетод Фибоначчи" + (" (минимум)" if find_min else " (максимум)")
           + f", epsilon={epsilon}, tol={tol}")
