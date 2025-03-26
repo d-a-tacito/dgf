@@ -40,11 +40,10 @@ def dichotomy_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
         return sign * f(x)
 
     iteration_data = []
-    iterations = 0
+    iterations = 1
     f_calls = 0
 
     while (b - a) > tol and iterations < max_iterations:
-        iterations += 1
         mid = (a + b) / 2
         x1 = mid - epsilon
         x2 = mid + epsilon
@@ -58,6 +57,7 @@ def dichotomy_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
             b = x2
         else:
             a = x1
+        iterations += 1
 
     x_opt = (a + b) / 2
     f_opt = f(x_opt)
@@ -92,9 +92,9 @@ def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1
     x2 = a + (b - a) / phi
     f1 = g(x1); f_calls += 1
     f2 = g(x2); f_calls += 1
+    iterations+=1
 
     while (b - a) > tol and iterations < max_iterations:
-        iterations += 1
         iteration_data.append((iterations, a, b, x1, x2, sign*f1, sign*f2))
         if f1 <= f2:
             b = x2
@@ -108,9 +108,10 @@ def golden_section_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1
             f1 = f2
             x2 = a + (b - a) / phi
             f2 = g(x2); f_calls += 1
+        iterations += 1
 
     x_opt = (a + b) / 2
-    f_opt = f(x_opt); f_calls += 1
+    f_opt = f(x_opt)
 
     print("\nМетод золотого сечения" + (" (минимум)" if find_min else " (максимум)")
           + f", epsilon={epsilon}, tol={tol}")
@@ -147,9 +148,9 @@ def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
     x2 = a + fib[n-1]/fib[n] * (b - a)
     f1 = g(x1); f_calls += 1
     f2 = g(x2); f_calls += 1
+    iterations+=1
 
     while iterations < (n - 2) and (b - a) > tol and iterations < max_iterations:
-        iterations += 1
         iteration_data.append((iterations, a, b, x1, x2, sign*f1, sign*f2))
         if f1 > f2:
             a = x1
@@ -163,9 +164,10 @@ def fibonacci_method(f, a, b, epsilon, tol, find_min=True, max_iterations=1000):
             f2 = f1
             x1 = a + fib[n - iterations - 2]/fib[n - iterations] * (b - a)
             f1 = g(x1); f_calls += 1
+        iterations += 1
 
     x_opt = (a + b) / 2
-    f_opt = f(x_opt); f_calls += 1
+    f_opt = f(x_opt)
 
     print("\nМетод Фибоначчи" + (" (минимум)" if find_min else " (максимум)")
           + f", epsilon={epsilon}, tol={tol}")
