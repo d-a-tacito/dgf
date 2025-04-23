@@ -3,9 +3,6 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import pandas as pd
-from openpyxl import load_workbook
-
-# 1. Определение функций задачи
 
 def objective(x):
     """Целевая функция E(X₁, X₂) = 4X₁² - 5X₁X₂ + X₂²"""
@@ -19,54 +16,61 @@ def constraint2(x):
     """Второе ограничение: X₁ + X₂ - 6 <= 0"""
     return x[0] + x[1] - 6
 
-# 2. Метод штрафных функций
-
-def penalty_function(x, mu):
-    """Штрафная функция"""
+def penalty_function(x, mu, X_type):
+    """Штрафная функция с учетом типа множества X"""
     penalty = 0
-    # Квадратичные штрафы за нарушение ограничений
+    
+    # Общие штрафы за основные ограничения
     penalty += max(0, constraint1(x))**2
     penalty += max(0, constraint2(x))**2
-    # Штрафы за отрицательные значения переменных
-    penalty += max(0, -x[0])**2
-    penalty += max(0, -x[1])**2
+    
+    # Штрафы в зависимости от типа множества X
+    if X_type == 'b':  # X₁, X₂ ≥ 0
+        penalty += max(0, -x[0])**2 + max(0, -x[1])**2
+    elif X_type == 'c':  # X₁ + X₂ ≤ 6 и X₁, X₂ ≥ 0
+        penalty += max(0, -x[0])**2 + max(0, -x[1])**2
+        penalty += max(0, constraint2(x))**2
+    
     return objective(x) + mu * penalty
 
-def penalty_method(initial_point, mu_values, X_type='E2', max_iter=100, tol=1e-6):
+def penalty_method(initial_point, mu_init, beta, epsilon, X_type, max_iter=100):
     """
-    Реализация метода штрафных функций
+    Реализация метода штрафных функций с учетом типа множества X
     
     Параметры:
-    - initial_point: начальная точка
-    - mu_values: список значений параметра штрафа
-    - X_type: тип множества X ('E2', 'nonnegative', 'constraint3')
+    - initial_point: начальная точка (X₁, X₂)
+    - mu_init: начальное значение параметра штрафа
+    - beta: коэффициент увеличения mu
+    - epsilon: критерий остановки
+    - X_type: тип множества X ('a', 'b' или 'c')
     - max_iter: максимальное число итераций
-    - tol: критерий остановки
     
     Возвращает:
-    - Результаты в виде таблицы
-    - Оптимальное решение
+    - results: список с результатами каждой итерации
+    - optimal_point: найденное оптимальное решение
     """
     results = []
     x_current = np.array(initial_point)
+    mu = mu_init
+    k = 1
     
-    for k, mu in enumerate(mu_values, 1):
+    while k <= max_iter:
         # Определяем ограничения в зависимости от типа множества X
         constraints = []
         bounds = None
         
-        if X_type == 'nonnegative':
+        if X_type == 'b':  # X₁, X₂ ≥ 0
             bounds = [(0, None), (0, None)]
-        elif X_type == 'constraint3':
+        elif X_type == 'c':  # X₁ + X₂ ≤ 6 и X₁, X₂ ≥ 0
             bounds = [(0, None), (0, None)]
             constraints.append({'type': 'ineq', 'fun': lambda x: -constraint2(x)})
         
-        # Решаем задачу оптимизации с текущим параметром штрафа
-        res = minimize(lambda x: penalty_function(x, mu), 
-                       x_current, 
-                       method='SLSQP',
-                       bounds=bounds,
-                       constraints=constraints)
+        # Шаг 1: Решаем задачу минимизации
+        res = minimize(lambda x: penalty_function(x, mu, X_type), 
+                      x_current, 
+                      method='SLSQP',
+                      bounds=bounds,
+                      constraints=constraints)
         
         x_optimal = res.x
         f_val = objective(x_optimal)
@@ -74,44 +78,49 @@ def penalty_method(initial_point, mu_values, X_type='E2', max_iter=100, tol=1e-6
         theta = f_val + mu * alpha
         mu_alpha = mu * alpha
         
-        results.append([k, mu, x_optimal[0], x_optimal[1], f_val, alpha, theta, mu_alpha])
+        # Сохраняем результаты
+        results.append({
+            'K': k,
+            'μk': mu,
+            'X₁': x_optimal[0],
+            'X₂': x_optimal[1],
+            'F(X_{k+1})': f_val,
+            'α(X_{μk})': alpha,
+            'Θ(μk)': theta,
+            'μkα(X_{μk})': mu_alpha
+        })
         
-        # Проверка критерия остановки
-        if mu_alpha < tol:
+        # Шаг 2: Проверка критерия остановки
+        if mu_alpha < epsilon:
             break
             
+        # Обновление параметров
+        mu *= beta
         x_current = x_optimal
+        k += 1
     
     return results, x_optimal
 
 def save_to_excel(results, filename, sheet_name):
-    """Сохраняет результаты в Excel файл с проверкой существования листа"""
-    df = pd.DataFrame(results, columns=['K', 'µk', 'X₁', 'X₂', 'F(Xk+1)', 'α(Xµk)', 'Θ(µk)', 'µkα(Xµk)'])
-    
-    try:
-        # Пытаемся открыть существующий файл
-        with pd.ExcelWriter(filename, engine='openpyxl', mode='a') as writer:
-            # Проверяем, существует ли уже такой лист
-            if sheet_name in writer.book.sheetnames:
-                # Удаляем существующий лист
-                std = writer.book[sheet_name]
-                writer.book.remove(std)
-            # Записываем данные
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-    except FileNotFoundError:
-        # Если файл не существует, создаем новый
-        with pd.ExcelWriter(filename, engine='openpyxl', mode='w') as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    """Сохраняет результаты в Excel файл"""
+    df = pd.DataFrame(results)
+    df = df[['K', 'μk', 'X₁', 'X₂', 'F(X_{k+1})', 'α(X_{μk})', 'Θ(μk)', 'μkα(X_{μk})']]
+    with pd.ExcelWriter(filename, engine='openpyxl', mode='a') as writer:
+        # Удаляем лист, если он уже существует
+        if sheet_name in writer.book.sheetnames:
+            del writer.book[sheet_name]
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+    print(f"Результаты сохранены в файл {filename} на листе '{sheet_name}'")
 
-def plot_with_directions(results, initial_point):
-    """Визуализация с указанием направлений движения"""
+def plot_optimization(results, initial_point, X_type):
+    """Визуализация процесса оптимизации"""
     plt.figure(figsize=(12, 8))
     
     # Траектория оптимизации
-    x_path = [initial_point[0]] + [r[2] for r in results]
-    y_path = [initial_point[1]] + [r[3] for r in results]
+    x_path = [initial_point[0]] + [r['X₁'] for r in results]
+    y_path = [initial_point[1]] + [r['X₂'] for r in results]
     
-    # Создаем стрелки для направлений движения (зеленые)
+    # Создаем стрелки для направлений движения
     for i in range(len(x_path)-1):
         dx = x_path[i+1] - x_path[i]
         dy = y_path[i+1] - y_path[i]
@@ -120,16 +129,16 @@ def plot_with_directions(results, initial_point):
                  fc='green', ec='green', length_includes_head=True)
     
     # Отмечаем точки
-    plt.plot(x_path, y_path, 'go-', markersize=5, label='Траектория оптимизации', color='green')
-    plt.plot(initial_point[0], initial_point[1], 'ko', markersize=8, label='Начальная точка')  # Черная точка
-    plt.plot(results[-1][2], results[-1][3], 'b*', markersize=10, label='Оптимальное решение')
+    plt.plot(x_path, y_path, 'go-', markersize=5, label='Траектория оптимизации')
+    plt.plot(initial_point[0], initial_point[1], 'ko', markersize=8, label='Начальная точка')
+    plt.plot(results[-1]['X₁'], results[-1]['X₂'], 'b*', markersize=10, label='Оптимальное решение')
     
     # Подписи точек с µ
-    for i, (x, y, mu) in enumerate(zip(x_path, y_path, [0] + [r[1] for r in results])):
-        if i > 0:  # Пропускаем начальную точку
-            plt.text(x, y, f'µ={mu}', fontsize=8, ha='right', va='bottom')
+    for i, (x, y, mu) in enumerate(zip(x_path, y_path, [0] + [r['μk'] for r in results])):
+        if i > 0:
+            plt.text(x, y, f'µ={mu:.1f}', fontsize=8, ha='right', va='bottom')
     
-    # Сетка и линии уровня
+    # Линии уровня
     x1 = np.linspace(-1, 4, 400)
     x2 = np.linspace(-1, 6, 400)
     X1, X2 = np.meshgrid(x1, x2)
@@ -142,48 +151,76 @@ def plot_with_directions(results, initial_point):
     plt.plot(x1, x1**2 + 2, 'r-', label='X₁² - X₂ + 2 = 0')
     plt.plot(x1, 6 - x1, 'b-', label='X₁ + X₂ - 6 = 0')
     
-    # Область допустимых решений
-    feasible = (X1**2 - X2 + 2 <= 0) & (X1 + X2 - 6 <= 0) & (X1 >= 0) & (X2 >= 0)
+    # Область допустимых решений в зависимости от X_type
+    if X_type == 'a':
+        feasible = (X1**2 - X2 + 2 <= 0) & (X1 + X2 - 6 <= 0)
+    elif X_type == 'b':
+        feasible = (X1**2 - X2 + 2 <= 0) & (X1 + X2 - 6 <= 0) & (X1 >= 0) & (X2 >= 0)
+    elif X_type == 'c':
+        feasible = (X1**2 - X2 + 2 <= 0) & (X1 + X2 - 6 <= 0) & (X1 >= 0) & (X2 >= 0)
+    
     plt.contourf(X1, X2, feasible, levels=[0.5, 1.5], colors=['lightgreen'], alpha=0.3)
     
     plt.xlim([-1, 4])
     plt.ylim([-1, 6])
     plt.xlabel('X₁')
     plt.ylabel('X₂')
-    plt.title('Метод штрафных функций с направлениями движения')
+    
+    # Заголовок с указанием типа множества X
+    x_type_names = {
+        'a': 'X = E₂ (без дополнительных ограничений)',
+        'b': 'X = {(X₁, X₂): X₁ ≥ 0, X₂ ≥ 0}',
+        'c': 'X = {(X₁, X₂): X₁ + X₂ ≤ 6, X₁ ≥ 0, X₂ ≥ 0}'
+    }
+    plt.title(f'Метод штрафных функций\n{x_type_names[X_type]}')
     plt.legend()
     plt.grid(True)
     plt.show()
 
-# 3. Выполнение расчетов и сохранение в Excel
+# Основная программа
+def main():
+    print("Метод штрафных функций для задачи оптимизации")
+    print("Начальная точка фиксирована: (0, 0)")
+    
+    # Ввод параметров алгоритма
+    mu_init = float(input("Введите начальное значение μ: "))
+    beta = float(input("Введите коэффициент β (≥1): "))
+    epsilon = float(input("Введите критерий остановки ε: "))
+    
+    # Выбор типа множества X
+    print("\nВыберите тип множества X:")
+    print("a) X = E₂ (без дополнительных ограничений)")
+    print("b) X = {(X₁, X₂): X₁ ≥ 0, X₂ ≥ 0}")
+    print("c) X = {(X₁, X₂): X₁ + X₂ ≤ 6, X₁ ≥ 0, X₂ ≥ 0}")
+    X_type = input("Введите букву (a, b или c): ").lower()
+    
+    while X_type not in ['a', 'b', 'c']:
+        print("Неверный ввод. Пожалуйста, введите a, b или c.")
+        X_type = input("Введите букву (a, b или c): ").lower()
+    
+    initial_point = [0, 0]  # Фиксированная начальная точка
+    
+    # Запуск алгоритма
+    results, optimal_point = penalty_method(initial_point, mu_init, beta, epsilon, X_type)
+    
+    # Сохранение в Excel
+    sheet_names = {
+        'a': 'X=E2',
+        'b': 'X_nonnegative',
+        'c': 'X_with_constraint'
+    }
+    save_to_excel(results, 'optimization_results.xlsx', sheet_names[X_type])
+    
+    # Вывод результатов
+    print("\nРезультаты оптимизации:")
+    print(f"Тип множества X: {X_type}")
+    print(f"Начальная точка: ({initial_point[0]}, {initial_point[1]})")
+    print(f"Оптимальное решение: ({optimal_point[0]:.4f}, {optimal_point[1]:.4f})")
+    print(f"Значение целевой функции: {objective(optimal_point):.4f}")
+    print(f"Количество итераций: {len(results)}")
+    
+    # Визуализация
+    plot_optimization(results, initial_point, X_type)
 
-# 3.1. Поиск оптимального решения для µ = 0.1, 1, 10, 100
-mu_values = [0.1, 1, 10, 100]
-initial_point = [0, 0]
-
-results_mu, opt_solution = penalty_method(initial_point, mu_values)
-save_to_excel(results_mu, 'optimization_results.xlsx', 'Разные µ')
-
-# 3.2. Поиск для нескольких начальных точек
-initial_points = [[0, 0], [1, 1], [2, 2], [3, 3]]
-for i, point in enumerate(initial_points):
-    results, _ = penalty_method(point, mu_values)
-    save_to_excel(results, 'optimization_results.xlsx', f'Начальная точка {i+1}')
-
-# 3.3. Решение задачи для разных типов множества X
-# a) X = E2
-results_e2, _ = penalty_method([0, 0], mu_values, 'E2')
-save_to_excel(results_e2, 'optimization_results.xlsx', 'X=E2')
-
-# b) X = {(X₁, X₂): X₁>= 0, X₂>=0}
-results_nonneg, _ = penalty_method([0, 0], mu_values, 'nonnegative')
-save_to_excel(results_nonneg, 'optimization_results.xlsx', 'X неотрицательные')
-
-# c) X = {(X₁, X₂): X₁ + X₂ <= 6, X₁>= 0, X₂>=0}
-results_constraint, _ = penalty_method([0, 0], mu_values, 'constraint3')
-save_to_excel(results_constraint, 'optimization_results.xlsx', 'X с ограничением')
-
-print("Результаты сохранены в файл 'optimization_results.xlsx'")
-
-# 4. Визуализация
-plot_with_directions(results_mu, initial_point)
+if __name__ == "__main__":
+    main()
